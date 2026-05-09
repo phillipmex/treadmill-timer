@@ -12,6 +12,7 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       min-height: 100vh;
+      padding: 2rem 1rem;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -37,14 +38,34 @@
       min-height: 1.8rem;
     }
     #timer {
-      font-size: 8rem;
+      font-size: clamp(4.5rem, 18vw, 8rem);
       font-weight: 900;
       letter-spacing: 0.05em;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-      margin-bottom: 2.5rem;
+      margin-bottom: 1.25rem;
     }
-    #controls { display: flex; gap: 1rem; }
+    #progress {
+      width: min(34rem, 88vw);
+      height: 1rem;
+      margin-bottom: 2.5rem;
+      border: 2px solid rgba(255,255,255,0.65);
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(0,0,0,0.12);
+    }
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background: rgba(255,255,255,0.9);
+      transition: width 0.2s linear;
+    }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+    }
     button {
       padding: 1rem 2.5rem;
       font-size: 1.2rem;
@@ -61,11 +82,21 @@
     button:disabled { opacity: 0.4; cursor: default; }
     #next-label {
       margin-top: 2rem;
-      font-size: 3rem;
+      font-size: clamp(1.5rem, 8vw, 3rem);
       font-weight: 900;
       letter-spacing: 0.1em;
       opacity: 0.75;
       min-height: 3.5rem;
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      #phase-label { font-size: 2.3rem; }
+      #set-counter { margin-bottom: 1rem; }
+      button {
+        flex: 1 1 8rem;
+        max-width: 12rem;
+        padding: 0.9rem 1.2rem;
+      }
     }
   </style>
 </head>
@@ -73,6 +104,7 @@
   <div id="phase-label">WALK</div>
   <div id="set-counter">Warm Up</div>
   <div id="timer">20:00</div>
+  <div id="progress"><div id="progress-bar"></div></div>
   <div id="controls">
     <button id="btn-start">Start</button>
     <button id="btn-reset">Reset</button>
@@ -100,6 +132,8 @@ let phaseIdx = 0;
 let timeLeft = PHASES[0].duration;
 let running = false;
 let intervalId = null;
+let phaseEndsAt = null;
+let lastBeepSecond = null;
 let wakeLock = null;
 let audioCtx = null;
 
@@ -107,6 +141,7 @@ const elPhase = document.getElementById('phase-label');
 const elSet   = document.getElementById('set-counter');
 const elTimer = document.getElementById('timer');
 const elNext  = document.getElementById('next-label');
+const elProgress = document.getElementById('progress-bar');
 const btnStart = document.getElementById('btn-start');
 const btnReset = document.getElementById('btn-reset');
 
@@ -126,6 +161,13 @@ function nextPhaseLabel() {
   return `Next: ${next.label}${next.set ? ` (Set ${next.set}/5)` : ''}`;
 }
 
+function updateProgress() {
+  const phase = PHASES[phaseIdx];
+  const remainingMs = running && phaseEndsAt ? Math.max(0, phaseEndsAt - Date.now()) : timeLeft * 1000;
+  const elapsed = 1 - remainingMs / (phase.duration * 1000);
+  elProgress.style.width = `${Math.min(100, Math.max(0, elapsed * 100))}%`;
+}
+
 function applyPhase() {
   const phase = PHASES[phaseIdx];
   const color = COLORS[phase.type];
@@ -135,6 +177,7 @@ function applyPhase() {
   elSet.textContent   = setCounterText(phase);
   elTimer.textContent = fmt(timeLeft);
   elNext.textContent  = nextPhaseLabel();
+  updateProgress();
 }
 
 function beep(freq, duration, volume) {
@@ -174,30 +217,38 @@ function transitionBeep() {
 }
 
 function tick() {
-  timeLeft--;
-  if (timeLeft <= 0) {
+  if (!phaseEndsAt) return;
+
+  while (phaseIdx < PHASES.length && Date.now() >= phaseEndsAt) {
     phaseIdx++;
     if (phaseIdx >= PHASES.length) {
       clearInterval(intervalId);
+      intervalId = null;
       running = false;
+      phaseEndsAt = null;
       document.body.style.backgroundColor = COLORS.done;
       document.querySelector('meta[name=theme-color]').setAttribute('content', COLORS.done);
       elPhase.textContent = 'DONE!';
       elSet.textContent   = 'Great work!';
       elTimer.textContent = '00:00';
       elNext.textContent  = '';
+      elProgress.style.width = '100%';
       btnStart.textContent = 'Start';
       btnStart.disabled = true;
       transitionBeep();
       releaseWakeLock();
       return;
     }
-    timeLeft = PHASES[phaseIdx].duration;
+    phaseEndsAt += PHASES[phaseIdx].duration * 1000;
+    lastBeepSecond = null;
     transitionBeep();
-    applyPhase();
-  } else {
-    elTimer.textContent = fmt(timeLeft);
-    if (timeLeft <= 3) beep(660, 0.15, 0.5);
+  }
+
+  timeLeft = Math.ceil((phaseEndsAt - Date.now()) / 1000);
+  applyPhase();
+  if (timeLeft <= 3 && timeLeft !== lastBeepSecond) {
+    lastBeepSecond = timeLeft;
+    beep(660, 0.15, 0.5);
   }
 }
 
@@ -214,22 +265,32 @@ async function releaseWakeLock() {
 btnStart.addEventListener('click', () => {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (running) {
+    timeLeft = Math.ceil((phaseEndsAt - Date.now()) / 1000);
     clearInterval(intervalId);
+    intervalId = null;
+    phaseEndsAt = null;
     running = false;
     btnStart.textContent = 'Resume';
+    applyPhase();
     releaseWakeLock();
   } else {
     buzz(220, 2.0, 1.0);
     running = true;
     btnStart.textContent = 'Pause';
     requestWakeLock();
-    intervalId = setInterval(tick, 1000);
+    phaseEndsAt = Date.now() + timeLeft * 1000;
+    lastBeepSecond = null;
+    tick();
+    intervalId = setInterval(tick, 250);
   }
 });
 
 btnReset.addEventListener('click', () => {
   clearInterval(intervalId);
+  intervalId = null;
   running = false;
+  phaseEndsAt = null;
+  lastBeepSecond = null;
   phaseIdx = 0;
   timeLeft = PHASES[0].duration;
   btnStart.textContent = 'Start';
@@ -240,6 +301,12 @@ btnReset.addEventListener('click', () => {
 
 document.addEventListener('visibilitychange', () => {
   if (running && document.visibilityState === 'visible') requestWakeLock();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'Space' || event.repeat || btnStart.disabled) return;
+  event.preventDefault();
+  btnStart.click();
 });
 
 applyPhase();
