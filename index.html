@@ -152,16 +152,19 @@ function beep(freq, duration, volume) {
 
 function buzz(freq, duration, volume) {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc  = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sawtooth';
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-  gain.gain.setValueAtTime(0.001, audioCtx.currentTime + duration);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duration);
+  audioCtx.resume().then(() => {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+    if (navigator.vibrate) navigator.vibrate(duration * 1000);
+  });
 }
 
 function transitionBeep() {
@@ -216,7 +219,7 @@ btnStart.addEventListener('click', () => {
     btnStart.textContent = 'Resume';
     releaseWakeLock();
   } else {
-    buzz(120, 2.0, 1.0);
+    buzz(220, 2.0, 1.0);
     running = true;
     btnStart.textContent = 'Pause';
     requestWakeLock();
