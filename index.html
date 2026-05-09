@@ -202,6 +202,7 @@ btnStart.addEventListener('click', () => {
     btnStart.textContent = 'Resume';
     releaseWakeLock();
   } else {
+    beep(880, 0.15, 0.6);
     running = true;
     btnStart.textContent = 'Pause';
     requestWakeLock();
