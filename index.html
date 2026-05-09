@@ -150,6 +150,20 @@ function beep(freq, duration, volume) {
   osc.stop(audioCtx.currentTime + duration);
 }
 
+function buzz(freq, duration, volume) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc  = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
 function transitionBeep() {
   beep(1046, 0.15, 0.7);
   setTimeout(() => beep(1046, 0.15, 0.7), 200);
@@ -202,7 +216,7 @@ btnStart.addEventListener('click', () => {
     btnStart.textContent = 'Resume';
     releaseWakeLock();
   } else {
-    beep(880, 0.15, 0.6);
+    buzz(120, 2.0, 1.0);
     running = true;
     btnStart.textContent = 'Pause';
     requestWakeLock();
