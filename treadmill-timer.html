@@ -66,6 +66,7 @@
       letter-spacing: 0.1em;
       opacity: 0.75;
       min-height: 3.5rem;
+      white-space: pre-line;
     }
   </style>
 </head>
@@ -124,7 +125,7 @@ function setCounterText(phase) {
 function nextPhaseLabel() {
   const next = PHASES[phaseIdx + 1];
   if (!next) return '';
-  return `Next: ${next.label}${next.set ? ` (Set ${next.set}/5)` : ''}`;
+  return `Next: ${next.label}${next.set ? `\n(Set ${next.set}/5)` : ''}`;
 }
 
 function applyPhase() {

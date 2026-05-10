@@ -88,6 +88,7 @@
       opacity: 0.75;
       min-height: 3.5rem;
       text-align: center;
+      white-space: pre-line;
     }
     @media (max-width: 600px) {
       #phase-label { font-size: 2.3rem; }
@@ -159,7 +160,7 @@ function setCounterText(phase) {
 function nextPhaseLabel() {
   const next = PHASES[phaseIdx + 1];
   if (!next) return '';
-  return `Next: ${next.label}${next.set ? ` (Set ${next.set}/5)` : ''}`;
+  return `Next: ${next.label}${next.set ? `\n(Set ${next.set}/5)` : ''}`;
 }
 
 function updateProgress() {
