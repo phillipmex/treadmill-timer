@@ -140,16 +140,18 @@ function applyPhase() {
 }
 
 function beep(freq, duration, volume) {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc  = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duration);
+  if (!audioCtx) return;
+  try {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
 }
 
 function transitionBeep() {
@@ -203,7 +205,7 @@ async function releaseWakeLock() {
 }
 
 btnStart.addEventListener('click', () => {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
   if (running) {
     clearInterval(intervalId);
     running = false;
