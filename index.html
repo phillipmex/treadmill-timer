@@ -251,15 +251,12 @@ function tick() {
   if (timeLeft <= 3 && timeLeft !== lastBeepSecond) {
     lastBeepSecond = timeLeft;
     beep(660, 0.15, 0.5);
-<<<<<<< HEAD
-=======
   }
   if (phaseIdx === 0 && timeLeft === 600 && !inclineAlerted) {
     inclineAlerted = true;
     beep(880, 0.2, 0.7);
     setTimeout(() => beep(880, 0.2, 0.7), 250);
     alert('15 minutes done — set incline to 1%');
->>>>>>> c7534bd (feat: 25min walk, 1% incline popup at 15min)
   }
 }
 
