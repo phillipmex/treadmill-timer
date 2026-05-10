@@ -103,7 +103,7 @@
 <body>
   <div id="phase-label">WALK</div>
   <div id="set-counter">Warm Up</div>
-  <div id="timer">20:00</div>
+  <div id="timer">25:00</div>
   <div id="progress"><div id="progress-bar"></div></div>
   <div id="controls">
     <button id="btn-start">Start</button>
@@ -113,7 +113,7 @@
 
 <script>
 const PHASES = [
-  { type: 'walk', duration: 1200, label: 'WALK', set: null },
+  { type: 'walk', duration: 1500, label: 'WALK', set: null },
   { type: 'rest', duration: 60,   label: 'REST', set: 1 },
   { type: 'walk', duration: 60,   label: 'WALK', set: 1 },
   { type: 'rest', duration: 60,   label: 'REST', set: 2 },
@@ -136,6 +136,7 @@ let phaseEndsAt = null;
 let lastBeepSecond = null;
 let wakeLock = null;
 let audioCtx = null;
+let inclineAlerted = false;
 
 const elPhase = document.getElementById('phase-label');
 const elSet   = document.getElementById('set-counter');
@@ -249,6 +250,15 @@ function tick() {
   if (timeLeft <= 3 && timeLeft !== lastBeepSecond) {
     lastBeepSecond = timeLeft;
     beep(660, 0.15, 0.5);
+<<<<<<< HEAD
+=======
+  }
+  if (phaseIdx === 0 && timeLeft === 600 && !inclineAlerted) {
+    inclineAlerted = true;
+    beep(880, 0.2, 0.7);
+    setTimeout(() => beep(880, 0.2, 0.7), 250);
+    alert('15 minutes done — set incline to 1%');
+>>>>>>> c7534bd (feat: 25min walk, 1% incline popup at 15min)
   }
 }
 
@@ -293,6 +303,7 @@ btnReset.addEventListener('click', () => {
   lastBeepSecond = null;
   phaseIdx = 0;
   timeLeft = PHASES[0].duration;
+  inclineAlerted = false;
   btnStart.textContent = 'Start';
   btnStart.disabled = false;
   applyPhase();
