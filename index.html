@@ -271,7 +271,6 @@ async function releaseWakeLock() {
 }
 
 btnStart.addEventListener('click', () => {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (running) {
     timeLeft = Math.ceil((phaseEndsAt - Date.now()) / 1000);
     clearInterval(intervalId);
@@ -282,7 +281,6 @@ btnStart.addEventListener('click', () => {
     applyPhase();
     releaseWakeLock();
   } else {
-    buzz(220, 2.0, 1.0);
     running = true;
     btnStart.textContent = 'Pause';
     requestWakeLock();
@@ -290,6 +288,10 @@ btnStart.addEventListener('click', () => {
     lastBeepSecond = null;
     tick();
     intervalId = setInterval(tick, 250);
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      buzz(220, 0.3, 1.0);
+    } catch(e) {}
   }
 });
 
