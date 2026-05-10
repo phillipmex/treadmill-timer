@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#22c55e">
+  <title>Treadmill Timer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.5s;
+      background-color: #22c55e;
+      color: white;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #phase-label {
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.25rem;
+    }
+    #set-counter {
+      font-size: 1.4rem;
+      font-weight: 600;
+      opacity: 0.85;
+      margin-bottom: 1.5rem;
+      min-height: 1.8rem;
+    }
+    #timer {
+      font-size: 8rem;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      margin-bottom: 2.5rem;
+    }
+    #controls { display: flex; gap: 1rem; }
+    button {
+      padding: 1rem 2.5rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      border: 3px solid rgba(255,255,255,0.7);
+      border-radius: 50px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { transform: scale(0.95); background: rgba(255,255,255,0.35); }
+    button:disabled { opacity: 0.4; cursor: default; }
+    #next-label {
+      margin-top: 2rem;
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      opacity: 0.75;
+      min-height: 3.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="phase-label">WALK</div>
+  <div id="set-counter">Warm Up</div>
+  <div id="timer">25:00</div>
+  <div id="controls">
+    <button id="btn-start">Start</button>
+    <button id="btn-reset">Reset</button>
+  </div>
+  <div id="next-label"></div>
+
+<script>
+const PHASES = [
+  { type: 'walk', duration: 1500, label: 'WALK', set: null },
+  { type: 'rest', duration: 60,   label: 'REST', set: 1 },
+  { type: 'walk', duration: 60,   label: 'WALK', set: 1 },
+  { type: 'rest', duration: 60,   label: 'REST', set: 2 },
+  { type: 'walk', duration: 60,   label: 'WALK', set: 2 },
+  { type: 'rest', duration: 60,   label: 'REST', set: 3 },
+  { type: 'walk', duration: 60,   label: 'WALK', set: 3 },
+  { type: 'rest', duration: 60,   label: 'REST', set: 4 },
+  { type: 'walk', duration: 60,   label: 'WALK', set: 4 },
+  { type: 'rest', duration: 60,   label: 'REST', set: 5 },
+  { type: 'walk', duration: 60,   label: 'WALK', set: 5 },
+];
+
+const COLORS = { walk: '#22c55e', rest: '#ef4444', done: '#3b82f6' };
+
+let phaseIdx = 0;
+let timeLeft = PHASES[0].duration;
+let running = false;
+let intervalId = null;
+let wakeLock = null;
+let audioCtx = null;
+let inclineAlerted = false;
+
+const elPhase = document.getElementById('phase-label');
+const elSet   = document.getElementById('set-counter');
+const elTimer = document.getElementById('timer');
+const elNext  = document.getElementById('next-label');
+const btnStart = document.getElementById('btn-start');
+const btnReset = document.getElementById('btn-reset');
+
+function fmt(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function setCounterText(phase) {
+  return phase.set === null ? 'Warm Up' : `Set ${phase.set} / 5`;
+}
+
+function nextPhaseLabel() {
+  const next = PHASES[phaseIdx + 1];
+  if (!next) return '';
+  return `Next: ${next.label}${next.set ? ` (Set ${next.set}/5)` : ''}`;
+}
+
+function applyPhase() {
+  const phase = PHASES[phaseIdx];
+  const color = COLORS[phase.type];
+  document.body.style.backgroundColor = color;
+  document.querySelector('meta[name=theme-color]').setAttribute('content', color);
+  elPhase.textContent = phase.label;
+  elSet.textContent   = setCounterText(phase);
+  elTimer.textContent = fmt(timeLeft);
+  elNext.textContent  = nextPhaseLabel();
+}
+
+function beep(freq, duration, volume) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc  = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function transitionBeep() {
+  beep(1046, 0.15, 0.7);
+  setTimeout(() => beep(1046, 0.15, 0.7), 200);
+  setTimeout(() => beep(1318, 0.4,  0.9), 400);
+}
+
+function tick() {
+  timeLeft--;
+  if (timeLeft <= 0) {
+    phaseIdx++;
+    if (phaseIdx >= PHASES.length) {
+      clearInterval(intervalId);
+      running = false;
+      document.body.style.backgroundColor = COLORS.done;
+      document.querySelector('meta[name=theme-color]').setAttribute('content', COLORS.done);
+      elPhase.textContent = 'DONE!';
+      elSet.textContent   = 'Great work!';
+      elTimer.textContent = '00:00';
+      elNext.textContent  = '';
+      btnStart.textContent = 'Start';
+      btnStart.disabled = true;
+      transitionBeep();
+      releaseWakeLock();
+      return;
+    }
+    timeLeft = PHASES[phaseIdx].duration;
+    transitionBeep();
+    applyPhase();
+  } else {
+    elTimer.textContent = fmt(timeLeft);
+    if (timeLeft <= 3) beep(660, 0.15, 0.5);
+    if (phaseIdx === 0 && timeLeft === 600 && !inclineAlerted) {
+      inclineAlerted = true;
+      beep(880, 0.2, 0.7);
+      setTimeout(() => beep(880, 0.2, 0.7), 250);
+      alert('15 minutes done — set incline to 1%');
+    }
+  }
+}
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+  }
+}
+
+async function releaseWakeLock() {
+  if (wakeLock) { try { await wakeLock.release(); } catch(e) {} wakeLock = null; }
+}
+
+btnStart.addEventListener('click', () => {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (running) {
+    clearInterval(intervalId);
+    running = false;
+    btnStart.textContent = 'Resume';
+    releaseWakeLock();
+  } else {
+    running = true;
+    btnStart.textContent = 'Pause';
+    requestWakeLock();
+    intervalId = setInterval(tick, 1000);
+  }
+});
+
+btnReset.addEventListener('click', () => {
+  clearInterval(intervalId);
+  running = false;
+  phaseIdx = 0;
+  timeLeft = PHASES[0].duration;
+  inclineAlerted = false;
+  btnStart.textContent = 'Start';
+  btnStart.disabled = false;
+  applyPhase();
+  releaseWakeLock();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (running && document.visibilityState === 'visible') requestWakeLock();
+});
+
+applyPhase();
+</script>
+</body>
+</html>
